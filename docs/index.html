@@ -90,6 +90,40 @@
   .note { font-size: 0.8rem; color: var(--muted); line-height: 1.6; }
   .note strong { color: var(--text); }
   a { color: var(--accent); }
+
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .field label { font-size: 0.85rem; color: var(--muted); }
+  .field input[type="text"], .field textarea {
+    background: #0b0d12;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 9px 11px;
+    font-size: 0.9rem;
+    font-family: inherit;
+  }
+  .field textarea { resize: vertical; min-height: 44px; }
+  #convo-log {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  .msg { padding: 8px 12px; border-radius: 10px; font-size: 0.88rem; line-height: 1.5; max-width: 88%; }
+  .msg-user { background: #23283a; align-self: flex-end; }
+  .msg-assistant { background: #17301f; align-self: flex-start; border: 1px solid rgba(61,220,132,0.25); }
+  .msg-role { font-size: 0.7rem; color: var(--muted); margin-bottom: 3px; }
+  #convo-state {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: #2a2e3a;
+    color: var(--muted);
+  }
 </style>
 </head>
 <body>
@@ -101,6 +135,30 @@
       CONTINUE / PAUSE / YIELD の3段階で判定します。すべてこのブラウザの中で完結し、
       音声はサーバーに送信されません。
     </p>
+
+    <div class="card">
+      <h2>🎙️ 会話する</h2>
+      <p class="note">
+        音声認識・読み上げはこのブラウザ内蔵の機能(Web Speech API)で完結します。
+        LLMの応答生成だけ、あなたが管理するローカルサーバー(Mac上のmlx_lm.server)に
+        問い合わせます -- 外部のクラウドAPIは使いません。
+      </p>
+      <div class="field">
+        <label for="llm-endpoint">LLMエンドポイントURL (例: https://your-mac.tailxxxx.ts.net)</label>
+        <input type="text" id="llm-endpoint" placeholder="https://your-mac.tailxxxx.ts.net" />
+      </div>
+      <div class="field">
+        <label for="system-prompt">システムプロンプト</label>
+        <textarea id="system-prompt"></textarea>
+      </div>
+      <div class="controls">
+        <button id="talk-btn">話しかける</button>
+        <button id="convo-reset-btn" class="secondary">会話をリセット</button>
+        <span id="convo-state">IDLE</span>
+      </div>
+      <div id="convo-status"></div>
+      <div id="convo-log" style="margin-top:12px;"></div>
+    </div>
 
     <div class="card">
       <div class="controls">
@@ -144,5 +202,7 @@
   <script src="js/model.js"></script>
   <script src="js/controller.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/conversation.js"></script>
+  <script src="js/conversation-ui.js"></script>
 </body>
 </html>

@@ -124,6 +124,62 @@ cd docs && python3 -m http.server 8080
 > **注意:** 現時点でdocs/model.jsonに埋め込まれているのは合成データ学習のベースラインです。
 > 実音声で再学習したら、上記のexportコマンドで置き換えてください。
 
+## 会話する（ローカルLLMとの音声対話）
+
+ブラウザデモの「🎙️ 会話する」カードから、実際に音声で会話できます。構成は以下の通りです。
+
+```
+スマホ(Safari, https://ele66218-wq.github.io/turn-taking-ai/)
+  ├─ SpeechRecognition(ブラウザ内蔵STT) ── ネットワーク不要
+  ├─ speechSynthesis(ブラウザ内蔵TTS)   ── ネットワーク不要
+  └─ fetch() ──Tailscale経由(HTTPS)──→ 自宅Mac
+                                          ├─ scripts/cors_proxy.py(CORS中継)
+                                          └─ mlx_lm.server(ローカルLLM)
+```
+
+**会話AI本体はクラウドAPIを一切使わず、あなたのMac上でローカルに動きます。** LLM呼び出しにも
+Anthropic/OpenAI等の課金は発生しません(電気代のみ)。将来的にLoRAで本物の重み更新を行う場合も、
+この構成ならモデルの重みに直接アクセスできます。
+
+### セットアップ手順
+
+1. **Mac側でLLMサーバーを準備**
+   ```bash
+   uv tool install mlx-lm
+   uv tool run --from mlx-lm mlx_lm.server --model mlx-community/Qwen2.5-7B-Instruct-4bit --port 8080
+   ```
+   (初回はモデルダウンロードでHugging Faceから約4.5GB取得します)
+
+2. **CORS中継プロキシを起動**(`mlx_lm.server`はCORSヘッダーを返さないため必須)
+   ```bash
+   python3 scripts/cors_proxy.py --upstream http://127.0.0.1:8080 --port 8787 \
+       --allow-origin https://ele66218-wq.github.io
+   ```
+
+3. **TailscaleでMacとスマホを同じ仮想ネットワークに入れる**
+   - Mac: `brew install --cask tailscale` → アプリを開いてログイン
+   - iPhone: App StoreでTailscaleをインストール → 同じアカウントでログイン
+
+4. **`tailscale serve`でHTTPS化**(GitHub PagesはHTTPS配信のため、Mac側もHTTPSにしないと
+   ブラウザの「混在コンテンツ」ブロックに引っかかる)
+   ```bash
+   tailscale serve --bg --https=443 127.0.0.1:8787
+   ```
+   発行された`https://<マシン名>.<tailnet名>.ts.net`のようなURLをメモする。
+
+5. **ブラウザデモの設定欄にURLを入力**
+   スマホでhttps://ele66218-wq.github.io/turn-taking-ai/ を開き、「会話する」カードの
+   「LLMエンドポイントURL」欄に手順4のURLを入力(`localStorage`に保存されるので次回以降は不要)。
+
+6. 「話しかける」ボタンを押して、マイクの許可を与えれば会話できます。
+
+### 今回のスコープ外(今後の拡張予定)
+
+- AIの読み上げ中に、今日作った`TurnTakingController`(割り込み判定)で本当に途中で止める機能
+  → 現状は単純な聞く→考える→話す、の往復のみ
+- 会話ログを使ったLoRAによる継続学習パイプライン
+- ストリーミング応答(現状は応答を全部受け取ってから読み上げ)
+
 ## プロジェクト構成
 
 ```
@@ -133,7 +189,8 @@ turn-taking-ai/
 ├── models/                  # 学習済みモデル(.joblib) — git管理外
 ├── scripts/
 │   ├── record_clip.py        # 対話式の録音・ラベル付けヘルパー
-│   └── export_model_json.py  # 学習済みモデル → docs/model.json
+│   ├── export_model_json.py  # 学習済みモデル → docs/model.json
+│   └── cors_proxy.py         # mlx_lm.server用の軽量CORS中継プロキシ
 ├── src/turn_taking/
 │   ├── config.py            # 設定dataclass + YAML読み込み
 │   ├── labels.py            # アノテーションスキーマ + labels.csv I/O
@@ -150,7 +207,7 @@ turn-taking-ai/
 ├── docs/                    # ブラウザ版デモ(GitHub Pages, JS完結)
 │   ├── index.html
 │   ├── model.json           # scripts/export_model_json.pyで生成
-│   └── js/                  # dsp/features/model/controller/appのJS移植
+│   └── js/                  # dsp/features/model/controller/app/conversationのJS移植
 └── tests/                   # pytestユニットテスト
 ```
 
