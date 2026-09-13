@@ -98,6 +98,32 @@ turn-taking realtime --model models/baseline.joblib --simulate some_clip.wav  # 
 まとめています。`--config path/to/your.yaml` で上書き可能（キーは
 `src/turn_taking/config.py` のdataclassと1:1対応、未知キーはエラーになります）。
 
+## ブラウザ版デモ（GitHub Pages / スマホ対応）
+
+`docs/` 配下に、学習済みモデルをJSON化して埋め込んだ**完全クライアントサイド版**の
+デモがあります。サーバー不要・音声はどこにも送信されず、GitHub Pagesで公開すれば
+スマホのブラウザからマイク入力→そのままリアルタイム判定まで試せます。
+
+```bash
+# モデルを学習し直したら、JSONも再エクスポートする
+python scripts/export_model_json.py --model models/baseline.joblib --out docs/model.json
+```
+
+`docs/js/features.js` は `src/turn_taking/features.py` の完全なJS移植で、
+同一信号に対して両者が同じ特徴量ベクトルを出すことをNode.js上で数値比較して検証済みです
+（誤差は浮動小数点の丸め誤差レベル）。`docs/js/controller.js` も
+`src/turn_taking/controller.py` の1:1移植です。
+
+ローカルで試す場合:
+
+```bash
+cd docs && python3 -m http.server 8080
+# ブラウザで http://localhost:8080 を開く(マイク許可が必要)
+```
+
+> **注意:** 現時点でdocs/model.jsonに埋め込まれているのは合成データ学習のベースラインです。
+> 実音声で再学習したら、上記のexportコマンドで置き換えてください。
+
 ## プロジェクト構成
 
 ```
@@ -105,7 +131,9 @@ turn-taking-ai/
 ├── config/default.yaml      # デフォルト設定
 ├── data/raw/                # labels.csv + 録音済みwav（wav本体はgit管理外）
 ├── models/                  # 学習済みモデル(.joblib) — git管理外
-├── scripts/record_clip.py   # 対話式の録音・ラベル付けヘルパー
+├── scripts/
+│   ├── record_clip.py        # 対話式の録音・ラベル付けヘルパー
+│   └── export_model_json.py  # 学習済みモデル → docs/model.json
 ├── src/turn_taking/
 │   ├── config.py            # 設定dataclass + YAML読み込み
 │   ├── labels.py            # アノテーションスキーマ + labels.csv I/O
@@ -119,7 +147,10 @@ turn-taking-ai/
 │   ├── controller.py        # CONTINUE/PAUSE/YIELDステートマシン
 │   ├── realtime.py          # マイク/WAV再生の実行ループ
 │   └── cli.py                # `turn-taking` CLI
-├── web/                     # ブラウザ版デモ(GitHub Pages, JS完結)
+├── docs/                    # ブラウザ版デモ(GitHub Pages, JS完結)
+│   ├── index.html
+│   ├── model.json           # scripts/export_model_json.pyで生成
+│   └── js/                  # dsp/features/model/controller/appのJS移植
 └── tests/                   # pytestユニットテスト
 ```
 

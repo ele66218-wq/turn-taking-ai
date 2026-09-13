@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>turn-taking-ai デモ</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #0f1115;
+    --panel: #171a21;
+    --text: #e8eaf0;
+    --muted: #8b93a7;
+    --border: #2a2e3a;
+    --continue: #3ddc84;
+    --pause: #ffb547;
+    --yield: #ff5470;
+    --accent: #5b8cff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    padding: 20px 16px 48px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 0.85rem; margin: 0 0 20px; line-height: 1.5; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 0.95rem;
+    cursor: pointer;
+  }
+  button:disabled { background: #3a3f4d; color: var(--muted); cursor: not-allowed; }
+  button.secondary { background: #2a2e3a; }
+  label.toggle { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: var(--muted); margin-left: auto; }
+  #status { font-size: 0.85rem; color: var(--muted); margin-top: 10px; min-height: 1.2em; }
+  #status.error { color: var(--yield); }
+
+  .meter-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  #meter-value { font-variant-numeric: tabular-nums; font-size: 0.95rem; color: var(--muted); }
+  .meter-track {
+    height: 22px;
+    background: #0b0d12;
+    border-radius: 11px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .meter-fill { height: 100%; width: 0%; transition: width 0.1s linear, background 0.2s; background: var(--continue); }
+  .meter-continue { background: var(--continue); }
+  .meter-paused { background: var(--pause); }
+  .meter-yielded { background: var(--yield); }
+
+  .badge-row { display: flex; justify-content: center; margin: 16px 0 4px; }
+  .badge {
+    display: inline-block;
+    padding: 10px 28px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: 0.05em;
+  }
+  .badge-continue { background: rgba(61, 220, 132, 0.15); color: var(--continue); }
+  .badge-paused { background: rgba(255, 181, 71, 0.15); color: var(--pause); }
+  .badge-yielded { background: rgba(255, 84, 112, 0.15); color: var(--yield); }
+
+  #log {
+    white-space: pre-wrap;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78rem;
+    color: var(--muted);
+    max-height: 220px;
+    overflow-y: auto;
+    line-height: 1.5;
+  }
+  .note { font-size: 0.8rem; color: var(--muted); line-height: 1.6; }
+  .note strong { color: var(--text); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>turn-taking-ai デモ</h1>
+    <p class="subtitle">
+      リアルタイム音声対話におけるユーザー割り込み意図推定 -- マイクの音から
+      「今ユーザーが発話権を欲しがっているか」を推定し、AIがいつ黙るべきかを
+      CONTINUE / PAUSE / YIELD の3段階で判定します。すべてこのブラウザの中で完結し、
+      音声はサーバーに送信されません。
+    </p>
+
+    <div class="card">
+      <div class="controls">
+        <button id="start-btn">マイク開始</button>
+        <button id="stop-btn" class="secondary">停止</button>
+        <button id="reset-btn" class="secondary">リセット</button>
+        <label class="toggle">
+          <input type="checkbox" id="ai-toggle" />
+          AIが話している(オンセットガード確認用)
+        </label>
+      </div>
+      <div id="status"></div>
+    </div>
+
+    <div class="card">
+      <div class="badge-row"><span id="state-badge" class="badge badge-continue">CONTINUE</span></div>
+      <div class="meter-row">
+        <span>P(ユーザーが発話権を欲しがっている)</span>
+        <span id="meter-value">P(floor) = 0.000</span>
+      </div>
+      <div class="meter-track"><div id="meter-fill" class="meter-fill meter-continue"></div></div>
+    </div>
+
+    <div class="card">
+      <div id="log"></div>
+    </div>
+
+    <div class="card note">
+      <p><strong>注意:</strong> このデモに埋め込まれているモデルは、現時点では
+      <strong>合成音声(synthetic)のみで学習</strong>されたベースラインです。
+      実際の会話音声で学習していないため、判定精度は保証されません。
+      あくまでパイプライン(マイク入力 → 音響特徴量抽出 → 推論 → 発話制御)の
+      動作確認・デモ用としてご覧ください。</p>
+      <p>ソースコード: <a href="https://github.com/ele66218-wq/turn-taking-ai" target="_blank" rel="noopener">
+        github.com/ele66218-wq/turn-taking-ai</a></p>
+    </div>
+  </div>
+
+  <script src="js/dsp.js"></script>
+  <script src="js/features.js"></script>
+  <script src="js/model.js"></script>
+  <script src="js/controller.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
