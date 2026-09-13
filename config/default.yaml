@@ -1,0 +1,38 @@
+# Default configuration for turn-taking-ai.
+# Every key maps 1:1 onto the dataclasses in src/turn_taking/config.py.
+
+audio:
+  sample_rate: 16000      # Hz. 16k is enough for prosody and matches wav2vec2/HuBERT.
+  window_sec: 1.0         # Decision window: how much recent user audio the model sees.
+  hop_sec: 0.1            # Decision rate: a new prediction every 100 ms.
+  frame_length_ms: 25.0
+  frame_hop_ms: 10.0
+  preemphasis: 0.97
+
+features:
+  n_fft: 512
+  n_mels: 40
+  n_mfcc: 13
+  fmin: 50.0
+  fmax: 7600.0
+  f0_min: 60.0            # Lower bound for autocorrelation pitch search.
+  f0_max: 400.0
+  voicing_threshold: 0.30 # Normalised autocorrelation peak above which a frame is "voiced".
+  silence_floor_db: -70.0
+
+controller:
+  yield_threshold: 0.80   # P(yield) above this -> stop the TTS immediately.
+  pause_threshold: 0.40   # Between the two thresholds -> hold, wait and see.
+  yield_hold_hops: 2      # Consecutive 100 ms hops required before yielding (anti-chatter).
+  pause_hold_hops: 1
+  resume_after_sec: 0.40  # How long a PAUSE lasts before resuming on its own.
+  ai_onset_guard_sec: 0.15
+
+train:
+  model: random_forest    # random_forest | logistic_regression
+  test_size: 0.25
+  n_splits: 5
+  random_state: 42
+  class_weight: balanced
+  n_estimators: 400
+  max_depth: null

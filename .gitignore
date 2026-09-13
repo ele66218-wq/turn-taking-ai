@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Data & models (audio and binaries are not tracked)
+data/raw/**/*.wav
+data/processed/
+models/*.joblib
+models/*.json
+!models/.gitkeep
+
+# Notebooks
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+
+# Editable install build artifacts (setuptools strict editable mode)
+/build/
+*.egg-info/
