@@ -51,12 +51,19 @@
     renderHistory();
   }
 
-  async function runTurn() {
+  function runTurn() {
     if (busy) return;
     if (!Conversation.isSupported()) {
       setStatus("このブラウザは音声認識または音声合成に対応していません(Chrome/Safariでお試しください)", true);
       return;
     }
+    // Must run synchronously, before any `await`, or iOS Safari drops the
+    // tap's audio-output activation and later speak() calls go silent.
+    Conversation.unlockSpeechSynthesis();
+    runTurnAsync();
+  }
+
+  async function runTurnAsync() {
     busy = true;
     els.talkBtn.disabled = true;
     try {

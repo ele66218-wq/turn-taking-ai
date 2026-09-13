@@ -69,6 +69,29 @@ const Conversation = (() => {
   }
 
   /**
+   * "Unlock" speech synthesis for iOS Safari.
+   *
+   * WebKit only allows audio output that is a *synchronous* continuation of a
+   * user gesture (tap). Our real turn (listen -> await LLM -> speak) calls
+   * speak() several `await`s away from the click, by which point iOS has
+   * already dropped the gesture's activation and silently ignores speak()
+   * (verified against real hardware: no error event fires, it just never
+   * speaks). The fix used across the community for this exact WebKit quirk
+   * is to synchronously speak a near-silent utterance *inside* the click
+   * handler, before any `await` -- this keeps the page's audio output
+   * unlocked for the rest of that gesture's async continuation.
+   *
+   * Call this synchronously at the very top of the click handler, before
+   * any `await`.
+   */
+  function unlockSpeechSynthesis() {
+    if (!window.speechSynthesis) return;
+    const primer = new SpeechSynthesisUtterance(" ");
+    primer.volume = 0;
+    window.speechSynthesis.speak(primer);
+  }
+
+  /**
    * Listen for one utterance via the browser's native speech recognizer.
    * @returns {Promise<string>} the recognized text
    */
@@ -191,6 +214,7 @@ const Conversation = (() => {
     loadHistory,
     saveHistory,
     isSupported,
+    unlockSpeechSynthesis,
     listenOnce,
     speak,
     askLLM,
