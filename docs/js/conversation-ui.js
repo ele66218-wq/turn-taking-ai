@@ -9,6 +9,7 @@
     systemPromptInput: document.getElementById("system-prompt"),
     talkBtn: document.getElementById("talk-btn"),
     resetBtn: document.getElementById("convo-reset-btn"),
+    ttsTestBtn: document.getElementById("tts-test-btn"),
     stateBadge: document.getElementById("convo-state"),
     status: document.getElementById("convo-status"),
     log: document.getElementById("convo-log"),
@@ -97,6 +98,19 @@
     }
   }
 
+  async function runTtsTest() {
+    // Deliberately synchronous-as-possible: no STT, no fetch, isolates
+    // whether speechSynthesis itself works on this device at all, separate
+    // from the gesture-chain issue the full conversation loop can hit.
+    setStatus("読み上げテスト実行中...");
+    try {
+      await Conversation.speak("これは読み上げのテストです。聞こえていますか？", { lang: "ja-JP" });
+      setStatus("読み上げテスト成功: 音声が聞こえていれば正常です");
+    } catch (err) {
+      setStatus(`読み上げテスト失敗: ${err.message}`, true);
+    }
+  }
+
   function resetConversation() {
     history = [];
     Conversation.saveHistory(history);
@@ -109,6 +123,7 @@
   els.systemPromptInput.value = Conversation.DEFAULT_SYSTEM_PROMPT;
   els.talkBtn.addEventListener("click", runTurn);
   els.resetBtn.addEventListener("click", resetConversation);
+  els.ttsTestBtn.addEventListener("click", runTtsTest);
 
   if (!Conversation.isSupported()) {
     setStatus("このブラウザは音声認識(SpeechRecognition)または音声合成に対応していません。Safari/Chromeでお試しください", true);

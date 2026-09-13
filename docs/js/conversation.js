@@ -129,23 +129,88 @@ const Conversation = (() => {
     });
   }
 
-  /**
-   * Speak text via the browser's native speech synthesizer.
-   * @returns {Promise<void>} resolves when speaking finishes
-   */
-  function speak(text, { lang = "ja-JP", rate = 1.0 } = {}) {
-    return new Promise((resolve, reject) => {
-      if (!window.speechSynthesis) {
-        reject(new Error("このブラウザは音声合成(speechSynthesis)に対応していません"));
+  /** Voices load asynchronously on first page load; wait for them (with a timeout). */
+  function waitForVoices(timeoutMs = 1500) {
+    return new Promise((resolve) => {
+      const existing = window.speechSynthesis.getVoices();
+      if (existing.length > 0) {
+        resolve(existing);
         return;
       }
+      let settled = false;
+      const onChange = () => {
+        if (settled) return;
+        settled = true;
+        window.speechSynthesis.removeEventListener("voiceschanged", onChange);
+        resolve(window.speechSynthesis.getVoices());
+      };
+      window.speechSynthesis.addEventListener("voiceschanged", onChange);
+      setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        window.speechSynthesis.removeEventListener("voiceschanged", onChange);
+        resolve(window.speechSynthesis.getVoices());
+      }, timeoutMs);
+    });
+  }
+
+  /**
+   * Speak text via the browser's native speech synthesizer.
+   *
+   * Unlike a plain speak() call, this (a) waits for the voice list so a
+   * matching-language voice can be selected explicitly rather than relying
+   * on the engine to guess from `lang`, and (b) times out with a clear
+   * diagnostic error if `onstart` never fires, instead of hanging forever --
+   * on iOS Safari a blocked/ignored speak() call fires neither `onend` nor
+   * `onerror`, so without this timeout the caller waits indefinitely.
+   *
+   * @returns {Promise<void>} resolves when speaking finishes
+   */
+  async function speak(text, { lang = "ja-JP", rate = 1.0, startTimeoutMs = 4000 } = {}) {
+    if (!window.speechSynthesis) {
+      throw new Error("このブラウザは音声合成(speechSynthesis)に対応していません");
+    }
+    const voices = await waitForVoices();
+    const prefix = lang.split("-")[0].toLowerCase();
+    const matchingVoice = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith(prefix));
+
+    return new Promise((resolve, reject) => {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = lang;
       utterance.rate = rate;
-      utterance.onend = () => resolve();
-      utterance.onerror = (event) => reject(new Error(`読み上げエラー: ${event.error}`));
+      if (matchingVoice) utterance.voice = matchingVoice;
+
+      let started = false;
+      let settled = false;
+      utterance.onstart = () => {
+        started = true;
+      };
+      utterance.onend = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      utterance.onerror = (event) => {
+        if (settled) return;
+        settled = true;
+        reject(new Error(`読み上げエラー: ${event.error}`));
+      };
+
       window.speechSynthesis.cancel(); // stop anything mid-utterance before speaking the new one
       window.speechSynthesis.speak(utterance);
+
+      setTimeout(() => {
+        if (settled) return;
+        if (!started) {
+          settled = true;
+          reject(
+            new Error(
+              `読み上げが開始されませんでした(iOSでブロックされている可能性があります。` +
+                `利用可能な音声: ${voices.length}件、日本語音声: ${matchingVoice ? matchingVoice.name : "見つかりません"})`
+            )
+          );
+        }
+      }, startTimeoutMs);
     });
   }
 
