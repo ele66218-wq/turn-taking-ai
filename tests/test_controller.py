@@ -23,7 +23,9 @@ def test_low_probability_stays_continue():
 def test_high_probability_eventually_yields():
     controller = _controller(yield_threshold=0.8, yield_hold_hops=2, ai_onset_guard_sec=0.0)
     decisions = [controller.step(0.95, ai_is_speaking=False) for _ in range(3)]
-    assert decisions[0].action == Action.CONTINUE  # only 1 hop above threshold so far
+    # Default pause_threshold=0.4/pause_hold_hops=1 means hop 0 already crosses into PAUSE;
+    # only the 2nd consecutive hop above yield_threshold escalates to YIELD.
+    assert decisions[0].action == Action.PAUSE
     assert decisions[1].action == Action.YIELD
     assert decisions[2].action == Action.YIELD  # sticky once yielded
 
